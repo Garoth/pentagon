@@ -9,6 +9,8 @@ import (
     "code.google.com/p/go.net/websocket"
     "github.com/Garoth/go-signalhandlers"
     "github.com/Garoth/pentagon-model"
+
+    "pentagon/mail"
 )
 
 const (
@@ -17,6 +19,7 @@ const (
 
 var (
     ADDR = flag.String("port", ":9217", "listening port")
+    MAIL_CHANNEL chan string
 )
 
 func main() {
@@ -25,6 +28,8 @@ func main() {
 
     go signalhandlers.Interrupt()
     go signalhandlers.Quit()
+
+    MAIL_CHANNEL = mail.Start()
 
     http.Handle(HTTP_WEBSOCKET, websocket.Handler(HandleWebSocket))
 
@@ -35,7 +40,7 @@ func main() {
 
 func HandleWebSocket(ws *websocket.Conn) {
     for {
-        componentInfo := &pentagonmodel.ComponentInfo{}
+        componentInfo := &pentagonmodel.ClientHeader{}
 
         var message string
         if err := websocket.Message.Receive(ws, &message); err != nil {
@@ -45,9 +50,18 @@ func HandleWebSocket(ws *websocket.Conn) {
         }
 
         if err := json.Unmarshal([]byte(message), &componentInfo); err != nil {
-            log.Fatalln("Decoding Message Error:", err)
+            log.Println("Decoding Message:", message, "Error:", err)
+            continue
         }
 
-        log.Printf("WebSocket Read: %+v", componentInfo)
+        if componentInfo.Component == pentagonmodel.COMPONENT_EMAIL {
+            if err := websocket.Message.Receive(ws, &message); err != nil {
+                log.Println("Error reading mail message:", err)
+                continue
+            }
+            MAIL_CHANNEL <- message
+        } else {
+            log.Println("Invalid component message receieved")
+        }
     }
 }
