@@ -9,13 +9,14 @@ import (
 
 var (
     FILE_ACCESS_LOCK = make(chan bool, 1)
+    REPLY = make(chan string)
     BACKEND = NewFileBackend("/Users/athorp/pentagondb")
 )
 
 // TODO need some kind of atomic test & write
 // TODO need to figure out how to delete a key
 
-func Start() (chan string, chan string) {
+func Start() (chan string, chan string, chan string) {
     read, write := make(chan string), make(chan string)
 
     FILE_ACCESS_LOCK <- true
@@ -48,13 +49,29 @@ func Start() (chan string, chan string) {
         }
     }()
 
-    return read, write
+    return read, write, REPLY
 }
 
 func handleRead(command *pentagonmodel.KeyValueReadMessage) {
     <-FILE_ACCESS_LOCK
 
-    BACKEND.Read(command.Category, command.Key)
+    reply := &pentagonmodel.KeyValueResponse{}
+    val, err := BACKEND.Read(command.Category, command.Key)
+    if err != nil {
+        reply.Success = false
+        reply.Error = err.Error()
+    } else {
+        reply.Success = true
+        reply.Key = command.Key
+        reply.Value = val
+    }
+
+    bytes, err2 := json.Marshal(reply)
+    if err2 != nil {
+        log.Fatalln("Failed marshalling kv reply", err2)
+    }
+
+    REPLY <- string(bytes)
 
     FILE_ACCESS_LOCK <- true
 }

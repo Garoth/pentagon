@@ -3,6 +3,7 @@ package keyvalue
 import (
     "os"
     "log"
+    "fmt"
     "io/ioutil"
 )
 
@@ -22,7 +23,6 @@ func NewFileBackend(location string) *FileBackend {
     return me
 }
 
-// TODO need to return err
 func (me *FileBackend) Write(category, key, value string) {
     if err := os.MkdirAll(me.location + "/" + category, os.ModeDir | 0777);
             err != nil {
@@ -45,14 +45,15 @@ func (me *FileBackend) Write(category, key, value string) {
     }
 }
 
-// TODO need to return err
-func (me *FileBackend) Read(category, key string) {
+func (me *FileBackend) Read(category, key string) (string, error) {
     filePath := me.location + "/" + category + "/" + key
 
     bytes, err := ioutil.ReadFile(filePath)
     if err != nil {
-        log.Println("Couldn't db read file", filePath, err)
-    } else {
-        log.Println("Read value", string(bytes), "for c", category, "k", key)
+        e := fmt.Errorf("Couldn't db read file '%v': %v", filePath, err)
+        log.Println(e)
+        return "", e
     }
+
+    return string(bytes), nil
 }

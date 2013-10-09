@@ -15,7 +15,7 @@ func Start() chan string {
         for {
             message := <-comm
 
-            mail := &pentagonmodel.MailComponentMessage{}
+            mail := &pentagonmodel.MailMessage{}
             if err := json.Unmarshal([]byte(message), &mail); err != nil {
                 log.Println("Decoding Message:", message, "Error:", err)
                 continue
@@ -28,7 +28,7 @@ func Start() chan string {
     return comm
 }
 
-func handleMessage(command *pentagonmodel.MailComponentMessage) {
+func handleMessage(command *pentagonmodel.MailMessage) {
     body := "To: " + command.To +
         "\r\nSubject: " + command.Subject + "\r\n\r\n" +
         command.Message
