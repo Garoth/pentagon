@@ -11,6 +11,7 @@ import (
     "github.com/Garoth/pentagon-model"
 
     "pentagon/mail"
+    "pentagon/keyvalue"
 )
 
 const (
@@ -19,7 +20,8 @@ const (
 
 var (
     ADDR = flag.String("port", ":9217", "listening port")
-    MAIL_CHANNEL chan string
+    MAIL_CHANNEL_MAIN chan string
+    KV_CHANNEL_READ, KV_CHANNEL_WRITE chan string
 )
 
 func main() {
@@ -29,7 +31,8 @@ func main() {
     go signalhandlers.Interrupt()
     go signalhandlers.Quit()
 
-    MAIL_CHANNEL = mail.Start()
+    MAIL_CHANNEL_MAIN = mail.Start()
+    KV_CHANNEL_READ, KV_CHANNEL_WRITE = keyvalue.Start()
 
     http.Handle(HTTP_WEBSOCKET, websocket.Handler(HandleWebSocket))
 
@@ -40,7 +43,7 @@ func main() {
 
 func HandleWebSocket(ws *websocket.Conn) {
     for {
-        componentInfo := &pentagonmodel.ClientHeader{}
+        h := &pentagonmodel.ClientHeader{}
 
         var message string
         if err := websocket.Message.Receive(ws, &message); err != nil {
@@ -49,17 +52,33 @@ func HandleWebSocket(ws *websocket.Conn) {
             break
         }
 
-        if err := json.Unmarshal([]byte(message), &componentInfo); err != nil {
+        if err := json.Unmarshal([]byte(message), &h); err != nil {
             log.Println("Decoding Message:", message, "Error:", err)
             continue
         }
 
-        if componentInfo.Component == pentagonmodel.COMPONENT_EMAIL {
+        if h.Component == pentagonmodel.COMPONENT_EMAIL {
             if err := websocket.Message.Receive(ws, &message); err != nil {
                 log.Println("Error reading mail message:", err)
                 continue
             }
-            MAIL_CHANNEL <- message
+
+            if (h.Subcomponent == pentagonmodel.SUBCOMPONENT_EMAIL_MAIN) {
+                MAIL_CHANNEL_MAIN <- message
+            }
+
+        } else if h.Component == pentagonmodel.COMPONENT_KV {
+            if err := websocket.Message.Receive(ws, &message); err != nil {
+                log.Println("Error reading mail message:", err)
+                continue
+            }
+
+            if h.Subcomponent == pentagonmodel.SUBCOMPONENT_KV_READ {
+                KV_CHANNEL_READ <- message
+            } else if h.Subcomponent == pentagonmodel.SUBCOMPONENT_KV_WRITE {
+                KV_CHANNEL_WRITE <- message
+            }
+
         } else {
             log.Println("Invalid component message receieved")
         }

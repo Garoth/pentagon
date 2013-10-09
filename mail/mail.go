@@ -5,7 +5,6 @@ import (
     "net/smtp"
     "encoding/json"
 
-
     "github.com/Garoth/pentagon-model"
 )
 
@@ -22,23 +21,28 @@ func Start() chan string {
                 continue
             }
 
-            body := "To: " + mail.To + "\r\nSubject: " +
-               mail.Subject + "\r\n\r\n" + mail.Message
-            conf := pentagonmodel.GetConfig()
-
-            auth := smtp.PlainAuth("",
-                conf.GmailAddress, conf.GmailPassword, "smtp.gmail.com")
-
-            err := smtp.SendMail("smtp.gmail.com:587", auth, conf.GmailAddress,
-               []string{mail.To}, []byte(body))
-            if err != nil {
-               log.Println("Couldn't send mail:", err)
-            }
-
-            log.Println("Sent email successfully")
+            handleMessage(mail)
         }
     }()
 
     return comm
 }
 
+func handleMessage(command *pentagonmodel.MailComponentMessage) {
+    body := "To: " + command.To +
+        "\r\nSubject: " + command.Subject + "\r\n\r\n" +
+        command.Message
+
+    conf := pentagonmodel.GetConfig()
+
+    auth := smtp.PlainAuth("", conf.GmailAddress,
+        conf.GmailPassword, "smtp.gmail.com")
+
+    err := smtp.SendMail("smtp.gmail.com:587", auth, conf.GmailAddress,
+       []string{command.To}, []byte(body))
+    if err != nil {
+       log.Println("Couldn't send mail:", err)
+    }
+
+    log.Println("Sent email successfully")
+}
