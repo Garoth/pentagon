@@ -9,7 +9,7 @@ import (
 
 var (
     FILE_ACCESS_LOCK = make(chan bool, 1)
-    BACKEND = NewFileBackend("/Users/athorp/pentagondb")
+    BACKEND = NewFileBackend(pentagonmodel.GetConfig().Workdir + "/pentagondb")
 )
 
 // TODO need some kind of atomic test & write

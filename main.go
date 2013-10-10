@@ -12,6 +12,7 @@ import (
 
     "pentagon/mail"
     "pentagon/keyvalue"
+    "pentagon/git"
 )
 
 const (
@@ -31,6 +32,7 @@ func main() {
 
     mail.Init()
     keyvalue.Init()
+    git.Init()
 
     http.Handle(HTTP_WEBSOCKET, websocket.Handler(HandleWebSocket))
 
@@ -39,9 +41,6 @@ func main() {
     }
 }
 
-// TODO reply messages might get sent to wrong socket, based on whoever
-// reads them first. There needs to be a more explicit way of saying
-// who you're replying to
 func HandleWebSocket(ws *websocket.Conn) {
     closed := make(chan bool)
 
@@ -53,12 +52,19 @@ func HandleWebSocket(ws *websocket.Conn) {
 
     mail := mail.Channels()
     kvRead, kvWrite, kvReply := keyvalue.Channels()
+    gitWatch, gitReply := git.Channels()
 
     go func() {
         for {
             select {
             case msg := <-kvReply:
-                log.Println("Sending reply to client:", msg)
+                err := websocket.Message.Send(ws, msg)
+                if err != nil {
+                    log.Println("Couldn't send reply:", err)
+                    return
+                }
+
+            case msg := <-gitReply:
                 err := websocket.Message.Send(ws, msg)
                 if err != nil {
                     log.Println("Couldn't send reply:", err)
@@ -66,7 +72,6 @@ func HandleWebSocket(ws *websocket.Conn) {
                 }
 
             case <-closed:
-                log.Println("Reply thread noticed conn closed")
                 return
             }
         }
@@ -88,26 +93,26 @@ func HandleWebSocket(ws *websocket.Conn) {
             continue
         }
 
-        if h.Component == pentagonmodel.COMPONENT_EMAIL {
-            if err := websocket.Message.Receive(ws, &message); err != nil {
-                log.Println("Error reading mail message:", err)
-                continue
-            }
+        if err := websocket.Message.Receive(ws, &message); err != nil {
+            log.Println("Error reading message:", err)
+            continue
+        }
 
+        if h.Component == pentagonmodel.COMPONENT_EMAIL {
             if (h.Subcomponent == pentagonmodel.SUBCOMPONENT_EMAIL_MAIN) {
                 mail <- message
             }
 
         } else if h.Component == pentagonmodel.COMPONENT_KV {
-            if err := websocket.Message.Receive(ws, &message); err != nil {
-                log.Println("Error reading mail message:", err)
-                continue
-            }
-
             if h.Subcomponent == pentagonmodel.SUBCOMPONENT_KV_READ {
                 kvRead <- message
             } else if h.Subcomponent == pentagonmodel.SUBCOMPONENT_KV_WRITE {
                 kvWrite <- message
+            }
+
+        } else if h.Component == pentagonmodel.COMPONENT_GIT {
+            if (h.Subcomponent == pentagonmodel.SUBCOMPONENT_GIT_WATCH) {
+                gitWatch <- message
             }
 
         } else {

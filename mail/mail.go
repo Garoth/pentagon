@@ -45,6 +45,7 @@ func doMail(command *pentagonmodel.MailMessage) {
        []string{command.To}, []byte(body))
     if err != nil {
        log.Println("Couldn't send mail:", err)
+       return
     }
 
     log.Println("Sent email successfully")
