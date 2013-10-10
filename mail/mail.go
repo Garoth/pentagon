@@ -8,7 +8,10 @@ import (
     "github.com/Garoth/pentagon-model"
 )
 
-func Start() chan string {
+func Init() {
+}
+
+func Channels() chan string {
     comm := make(chan string, 10)
 
     go func() {
@@ -21,14 +24,14 @@ func Start() chan string {
                 continue
             }
 
-            handleMessage(mail)
+            doMail(mail)
         }
     }()
 
     return comm
 }
 
-func handleMessage(command *pentagonmodel.MailMessage) {
+func doMail(command *pentagonmodel.MailMessage) {
     body := "To: " + command.To +
         "\r\nSubject: " + command.Subject + "\r\n\r\n" +
         command.Message

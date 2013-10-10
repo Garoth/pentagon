@@ -9,17 +9,20 @@ import (
 
 var (
     FILE_ACCESS_LOCK = make(chan bool, 1)
-    REPLY = make(chan string)
     BACKEND = NewFileBackend("/Users/athorp/pentagondb")
 )
 
 // TODO need some kind of atomic test & write
 // TODO need to figure out how to delete a key
 
-func Start() (chan string, chan string, chan string) {
-    read, write := make(chan string), make(chan string)
-
+func Init() {
     FILE_ACCESS_LOCK <- true
+}
+
+func Channels() (chan string, chan string, chan string) {
+    read := make(chan string)
+    write := make(chan string)
+    reply := make(chan string)
 
     go func() {
         for {
@@ -31,7 +34,7 @@ func Start() (chan string, chan string, chan string) {
                 continue
             }
 
-            handleRead(cmd)
+            doRead(cmd, reply)
         }
     }()
 
@@ -45,38 +48,38 @@ func Start() (chan string, chan string, chan string) {
                 continue
             }
 
-            handleWrite(cmd)
+            doWrite(cmd, reply)
         }
     }()
 
-    return read, write, REPLY
+    return read, write, reply
 }
 
-func handleRead(command *pentagonmodel.KeyValueReadMessage) {
+func doRead(command *pentagonmodel.KeyValueReadMessage, reply chan string) {
     <-FILE_ACCESS_LOCK
 
-    reply := &pentagonmodel.KeyValueResponse{}
+    replyMsg := &pentagonmodel.KeyValueResponse{}
     val, err := BACKEND.Read(command.Category, command.Key)
     if err != nil {
-        reply.Success = false
-        reply.Error = err.Error()
+        replyMsg.Success = false
+        replyMsg.Error = err.Error()
     } else {
-        reply.Success = true
-        reply.Key = command.Key
-        reply.Value = val
+        replyMsg.Success = true
+        replyMsg.Key = command.Key
+        replyMsg.Value = val
     }
 
-    bytes, err2 := json.Marshal(reply)
+    bytes, err2 := json.Marshal(replyMsg)
     if err2 != nil {
         log.Fatalln("Failed marshalling kv reply", err2)
     }
 
-    REPLY <- string(bytes)
+    reply <- string(bytes)
 
     FILE_ACCESS_LOCK <- true
 }
 
-func handleWrite(command *pentagonmodel.KeyValueWriteMessage) {
+func doWrite(command *pentagonmodel.KeyValueWriteMessage, reply chan string) {
     <-FILE_ACCESS_LOCK
 
     BACKEND.Write(command.Category, command.Key, command.Value)

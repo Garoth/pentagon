@@ -20,8 +20,6 @@ const (
 
 var (
     ADDR = flag.String("port", ":9217", "listening port")
-    MAIL_CHANNEL_MAIN chan string
-    KV_CHANNEL_READ, KV_CHANNEL_WRITE, KV_CHANNEL_REPLY chan string
 )
 
 func main() {
@@ -31,8 +29,8 @@ func main() {
     go signalhandlers.Interrupt()
     go signalhandlers.Quit()
 
-    MAIL_CHANNEL_MAIN = mail.Start()
-    KV_CHANNEL_READ, KV_CHANNEL_WRITE, KV_CHANNEL_REPLY = keyvalue.Start()
+    mail.Init()
+    keyvalue.Init()
 
     http.Handle(HTTP_WEBSOCKET, websocket.Handler(HandleWebSocket))
 
@@ -53,10 +51,13 @@ func HandleWebSocket(ws *websocket.Conn) {
         ws.Close()
     }()
 
+    mail := mail.Channels()
+    kvRead, kvWrite, kvReply := keyvalue.Channels()
+
     go func() {
         for {
             select {
-            case msg := <-KV_CHANNEL_REPLY:
+            case msg := <-kvReply:
                 log.Println("Sending reply to client:", msg)
                 err := websocket.Message.Send(ws, msg)
                 if err != nil {
@@ -94,7 +95,7 @@ func HandleWebSocket(ws *websocket.Conn) {
             }
 
             if (h.Subcomponent == pentagonmodel.SUBCOMPONENT_EMAIL_MAIN) {
-                MAIL_CHANNEL_MAIN <- message
+                mail <- message
             }
 
         } else if h.Component == pentagonmodel.COMPONENT_KV {
@@ -104,9 +105,9 @@ func HandleWebSocket(ws *websocket.Conn) {
             }
 
             if h.Subcomponent == pentagonmodel.SUBCOMPONENT_KV_READ {
-                KV_CHANNEL_READ <- message
+                kvRead <- message
             } else if h.Subcomponent == pentagonmodel.SUBCOMPONENT_KV_WRITE {
-                KV_CHANNEL_WRITE <- message
+                kvWrite <- message
             }
 
         } else {
